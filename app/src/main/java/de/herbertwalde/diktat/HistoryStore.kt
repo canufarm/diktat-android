@@ -24,7 +24,7 @@ class HistoryStore(context: Context) {
     )
 
     companion object {
-        private const val MAX_ENTRIES = 100
+        private const val MAX_ENTRIES = 10
     }
 
     private val dir = File(context.filesDir, "recordings").apply { mkdirs() }
@@ -64,6 +64,13 @@ class HistoryStore(context: Context) {
     fun delete(id: Long) {
         audioFile(id).delete()
         save(all().filterNot { it.id == id })
+        notifyChanged()
+    }
+
+    @Synchronized
+    fun deleteAll() {
+        all().forEach { audioFile(it.id).delete() }
+        save(emptyList())
         notifyChanged()
     }
 
