@@ -112,7 +112,8 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
         refreshFocus()
     }
 
-    private class Target(val node: AccessibilityNodeInfo, val pasteOnly: Boolean)
+    /** [node] ist null, wenn die App kein fokussiertes Feld meldet (z. B. Telegram, Mail): Dann schreibt nur die Eingabeverbindung. */
+    private class Target(val node: AccessibilityNodeInfo?, val pasteOnly: Boolean)
 
     private fun isOwnNonTestField(node: AccessibilityNodeInfo) =
         node.packageName == packageName && node.viewIdResourceName != "$packageName:id/testField"
@@ -151,11 +152,29 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
     private fun findTarget(): Target? {
         focusedEditable()?.let { return Target(it, pasteOnly = false) }
         if (!keyboardVisible()) return null
+        val root = runCatching { rootInActiveWindow }.getOrNull()
         val focused = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
-            ?: runCatching { rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
-            ?: return null
+            ?: runCatching { root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
+            ?: findEditableInTree(root)
+        if (focused == null) {
+            // Tastatur offen, aber die App meldet kein Feld (Telegram, Mail-Apps, eigene Editoren):
+            // Trotzdem anbieten, geschrieben wird dann über die Eingabeverbindung der Tastatur.
+            if (root?.packageName == packageName || editorIsPassword()) return null
+            return Target(null, pasteOnly = true)
+        }
         if (isOwnNonTestField(focused) || focused.isPassword || editorIsPassword()) return null
         return Target(focused, pasteOnly = true)
+    }
+
+    /** Sucht ein Eingabefeld mit Fokus im Fensterbaum, falls findFocus() nichts liefert. */
+    private fun findEditableInTree(root: AccessibilityNodeInfo?, depth: Int = 0): AccessibilityNodeInfo? {
+        if (root == null || depth > 40) return null
+        if ((root.isFocused || root.isAccessibilityFocused) && (root.isEditable || root.className?.toString()?.contains("EditText") == true)) return root
+        for (i in 0 until root.childCount) {
+            val hit = findEditableInTree(runCatching { root.getChild(i) }.getOrNull(), depth + 1)
+            if (hit != null) return hit
+        }
+        return null
     }
 
     private fun refreshFocus() {
@@ -187,7 +206,7 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
     private fun setTarget(t: Target) {
         target = t.node
         targetPasteOnly = t.pasteOnly
-        targetPackage = t.node.packageName?.toString()
+        targetPackage = (t.node?.packageName ?: runCatching { rootInActiveWindow?.packageName }.getOrNull())?.toString()
     }
 
     // ------------------------------------------------------------------ Aufnahme
@@ -311,10 +330,11 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
      * Bis zu 1,2 s wird nachgeprüft; erst dann gilt das Feld als unverändert.
      */
     private fun insertText(text: String, done: (Boolean) -> Unit) {
-        val node = target?.takeIf { it.refresh() } ?: return done(false)
+        val node = target?.takeIf { it.refresh() }
         // 1. Weg überall: wie eine Tastatur über die Eingabeverbindung an der Cursor-Position schreiben.
         //    Ersetzt nie Feldinhalt – sicher auch für Rich Text (Formatierung, Checklisten, Bilder in Notizen).
         if (commitViaInputMethod(text)) return done(true)
+        if (node == null) return done(false)
         val supportsSetText = node.actionList.any { it.id == AccessibilityNodeInfo.ACTION_SET_TEXT }
         if (targetPasteOnly || !node.isEditable || !supportsSetText || node.packageName in RICH_TEXT_APPS) {
             // Eigener Editor: nur einfügen, nie den Inhalt setzen – und nur in das Feld mit dem Cursor.
