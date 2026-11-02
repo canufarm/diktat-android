@@ -1,0 +1,58 @@
+name: APK bauen (signiert)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Signaturschlüssel vorbereiten
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "Secret KEYSTORE_PASSWORD fehlt (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "NEW_KEY=false" >> "$GITHUB_ENV"
+          else
+            # Erster Lauf: neuen Schlüssel mit deinem Passwort erzeugen (Download "SCHLUESSEL", nur mit Passwort nutzbar).
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -alias diktat \
+              -keyalg RSA -keysize 4096 -validity 36500 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" -dname "CN=Diktat"
+            mkdir -p "$RUNNER_TEMP/schluessel"
+            base64 -w0 "$RUNNER_TEMP/release.jks" > "$RUNNER_TEMP/schluessel/KEYSTORE_BASE64.txt"
+            echo "NEW_KEY=true" >> "$GITHUB_ENV"
+          fi
+          cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=diktat
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+      - name: Bauen
+        run: ./gradlew assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diktat-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Schlüsseldatei bereitstellen (nur beim ersten Lauf)
+        if: env.NEW_KEY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SCHLUESSEL
+          path: ${{ runner.temp }}/schluessel/
