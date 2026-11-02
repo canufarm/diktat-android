@@ -166,7 +166,6 @@ class MainActivity : AppCompatActivity() {
         adapter.submit(entries)
         b.historyEmpty.visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
         b.deleteAllHistory.visibility = if (entries.isEmpty()) View.GONE else View.VISIBLE
-        b.diagnosis.text = "Diagnose (neueste zuerst):\n" + DiktatAccessibilityService.diagnosis()
     }
 
     private fun retry(id: Long) {
