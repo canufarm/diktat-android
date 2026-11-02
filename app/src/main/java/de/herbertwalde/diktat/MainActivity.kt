@@ -57,6 +57,14 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Wörterbuch gespeichert (${app.settings.customWords.size} Begriffe)", Toast.LENGTH_SHORT).show()
         }
 
+        b.deleteAllHistory.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setMessage("Alle Aufnahmen im Verlauf löschen?")
+                .setPositiveButton("Alle löschen") { _, _ -> app.history.deleteAll() }
+                .setNegativeButton("Abbrechen", null)
+                .show()
+        }
+
         b.history.layoutManager = LinearLayoutManager(this)
         b.history.adapter = adapter
     }
@@ -157,6 +165,7 @@ class MainActivity : AppCompatActivity() {
         val entries = app.history.all()
         adapter.submit(entries)
         b.historyEmpty.visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
+        b.deleteAllHistory.visibility = if (entries.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun retry(id: Long) {
