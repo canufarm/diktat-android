@@ -110,6 +110,32 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         refreshFocus()
+        scheduleRecheck()
+    }
+
+    /** true, solange Android meldet, dass ein Eingabefeld Text annimmt (unabhängig von den Ereignissen der App). */
+    @Volatile private var inputActive = false
+
+    private val recheckRunnable = Runnable { refreshFocus() }
+
+    /** Fenster und Fokus melden sich oft erst nach dem Ereignis: kurz danach noch einmal nachsehen. */
+    private fun scheduleRecheck() {
+        main.removeCallbacks(recheckRunnable)
+        main.postDelayed(recheckRunnable, 250)
+        main.postDelayed(recheckRunnable, 700)
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    override fun onCreateInputMethod(): AccessibilityService.InputMethod = object : AccessibilityService.InputMethod(this) {
+        override fun onStartInput(attribute: android.view.inputmethod.EditorInfo, restarting: Boolean) {
+            inputActive = attribute.inputType != InputType.TYPE_NULL
+            main.post { refreshFocus(); scheduleRecheck() }
+        }
+
+        override fun onFinishInput() {
+            inputActive = false
+            main.post { refreshFocus() }
+        }
     }
 
     /** [node] ist null, wenn die App kein fokussiertes Feld meldet (z. B. Telegram, Mail): Dann schreibt nur die Eingabeverbindung. */
@@ -151,7 +177,7 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
      */
     private fun findTarget(): Target? {
         focusedEditable()?.let { return Target(it, pasteOnly = false) }
-        if (!keyboardVisible()) return null
+        if (!keyboardVisible() && !inputActive) return null
         val root = runCatching { rootInActiveWindow }.getOrNull()
         val focused = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
             ?: runCatching { root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
