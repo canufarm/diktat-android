@@ -182,9 +182,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:text="Die letzten 100 Aufnahmen bleiben auf dem Handy gespeichert. Fehlt Text, kannst du sie erneut erkennen lassen."
+            android:text="Die letzten 10 Aufnahmen bleiben auf dem Handy gespeichert. Fehlt Text, kannst du sie erneut erkennen lassen."
             android:textAppearance="?attr/textAppearanceBodySmall"
             android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/deleteAllHistory"
+            style="?attr/materialButtonTonalStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Alle löschen" />
 
         <TextView
             android:id="@+id/historyEmpty"
