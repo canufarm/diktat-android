@@ -75,7 +75,7 @@ class OverlayController(
 
     private val screenW get() = context.resources.displayMetrics.widthPixels
     private val screenH get() = context.resources.displayMetrics.heightPixels
-    private val bubbleSize get() = px(52)
+    private val bubbleSize get() = px(31)
 
     private fun defaultBubbleX() = screenW - bubbleSize - px(28)
     private fun defaultBubbleY() = (screenH * 0.42).toInt()
@@ -160,7 +160,9 @@ class OverlayController(
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(primary) }
             elevation = px(6).toFloat()
             contentDescription = context.getString(R.string.cd_mic)
-            scaleType = android.widget.ImageView.ScaleType.CENTER
+            // Kreis ist klein, das Symbol soll möglichst groß bleiben: nur wenig Innenrand, Symbol passt sich an.
+            setPadding(px(4), px(4), px(4), px(4))
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
         }
         val container = FrameLayout(context).apply {
             // Etwas Rand, damit der Schatten nicht abgeschnitten wird.
