@@ -35,7 +35,23 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
         /** Für die Einstellungs-Seite: läuft der Dienst gerade? */
         @Volatile var running = false
             private set
+
+        /** Diagnose: die letzten Zustände der Feld-Erkennung (für die Einstellungs-Seite). */
+        private val diagLines = ArrayDeque<String>()
+        @Volatile private var lastDiagBody = ""
+
+        fun diagnosis(): String = synchronized(diagLines) { diagLines.joinToString("\n") }
+
+        fun addDiag(body: String) = synchronized(diagLines) {
+            if (body == lastDiagBody) return@synchronized
+            lastDiagBody = body
+            val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.GERMANY).format(java.util.Date())
+            diagLines.addFirst("$time $body")
+            while (diagLines.size > 12) diagLines.removeLast()
+        }
     }
+
+    private var lastEventType = 0
 
     private val main = Handler(Looper.getMainLooper())
     private lateinit var overlay: OverlayController
@@ -110,6 +126,7 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
     // ------------------------------------------------------------------ Fokus-Erkennung
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        lastEventType = event.eventType
         refreshFocus()
         scheduleRecheck()
     }
@@ -207,6 +224,15 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
     private fun refreshFocus() {
         if (!::overlay.isInitialized) return
         val found = findTarget()
+        runCatching {
+            val root = rootInActiveWindow
+            val fn = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()
+            addDiag(
+                "ev=$lastEventType app=${root?.packageName} fokus=${fn?.className}/edit=${fn?.isEditable} " +
+                    "tastatur=${keyboardVisible()} ime=$inputActive pw=${editorIsPassword()} " +
+                    "ziel=${if (found == null) "KEIN" else if (found.node == null) "ohne-Feld" else "Feld"} modus=${overlay.mode}",
+            )
+        }
         when (overlay.mode) {
             OverlayController.Mode.RECORDING, OverlayController.Mode.BUSY -> {
                 // Während Aufnahme/Erkennung bleibt das Ziel fest; ein neu fokussiertes Feld wird zum Ziel.
