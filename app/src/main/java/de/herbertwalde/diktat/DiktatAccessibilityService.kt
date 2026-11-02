@@ -2,6 +2,7 @@ package de.herbertwalde.diktat
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.InputMethod
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -126,7 +127,7 @@ class DiktatAccessibilityService : AccessibilityService(), OverlayController.Lis
     }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    override fun onCreateInputMethod(): AccessibilityService.InputMethod = object : AccessibilityService.InputMethod(this) {
+    override fun onCreateInputMethod(): InputMethod = object : InputMethod(this) {
         override fun onStartInput(attribute: android.view.inputmethod.EditorInfo, restarting: Boolean) {
             inputActive = attribute.inputType != InputType.TYPE_NULL
             main.post { refreshFocus(); scheduleRecheck() }
